@@ -1,0 +1,231 @@
+bases:
+- configs/base_v3.yaml
+binarizer:
+  augmentation:
+    random_pitch_shifting:
+      enabled: true
+      range:
+      - -5.0
+      - 5.0
+      scale: 0.75
+    random_time_stretching:
+      enabled: true
+      range:
+      - 0.5
+      - 2.0
+      scale: 0.75
+  binary_data_dir: data/qixuan_v4/binary/acoustic
+  extractors:
+    harmonic_noise_separation:
+      method: vr
+      model_path: assets/vr/model.pt
+    pitch_extraction:
+      f0_max: 1100
+      f0_min: 65
+      method: rmvpe
+      model_path: assets/rmvpe/model.pt
+  features:
+    aperiodic_mel:
+      enabled: true
+    audio_sample_rate: 44100
+    breathiness:
+      enabled: true
+      smooth_width: 0.12
+    energy:
+      enabled: true
+      smooth_width: 0.12
+    fft_size: 2048
+    hop_size: 512
+    spectrogram:
+      fmax: 16000
+      fmin: 40
+      num_bins: 128
+      type: mel
+    tension:
+      enabled: true
+      smooth_width: 0.12
+    voicing:
+      enabled: true
+      smooth_width: 0.12
+    win_size: 2048
+  num_workers: 4
+data:
+  dictionaries:
+    en: dictionaries/ds_cmudict-07b.txt
+    ja: dictionaries/japanese_dict_full.txt
+    zh: dictionaries/opencpop-extension.txt
+  extra_phonemes:
+  - EP
+  - ja/cl
+  merged_phoneme_groups:
+  - - zh/i
+    - ja/i
+    - en/iy
+  - - SP
+    - ja/cl
+  sources:
+  - language: zh
+    raw_data_dir: data/qixuan_v4/raw
+    speaker: qixuan
+    spk_id: 0
+    test_prefixes:
+    - DongWuSenLin_021
+    - HaoXiangAiZheGeShiJieA_001
+  - language: zh
+    raw_data_dir: data/junninghua_v3_part1_glide/raw
+    speaker: junninghua
+    spk_id: 1
+  - language: zh
+    raw_data_dir: data/junninghua_v3_part2_glide/raw
+    speaker: junninghua
+    spk_id: 1
+inference:
+  vocoder:
+    vocoder_path: checkpoints/pc_nsf_hifigan_44.1k_hop512_128bin_2025.02/model.ckpt
+    vocoder_type: nsf-hifigan
+model:
+  condition_dim: 256
+  embeddings:
+    use_energy_embed: false
+    use_breathiness_embed: true
+    use_key_shift_embed: true
+    use_speed_embed: true
+  linguistic_encoder:
+    arch: fs2
+    kwargs:
+      dropout: 0.1
+      ffn_act: gelu
+      ffn_kernel_size: 3
+      num_heads: 2
+      num_layers: 4
+      rel_pos: true
+      use_pos_embed: true
+      use_rope: true
+    num_lang: 3
+    use_lang_id: true
+  normalization:
+    spec_max: 0.0
+    spec_min: -6.0
+  num_spk: 2
+  spec_decoder:
+    aux_decoder_arch: convnext
+    aux_decoder_grad: 0.1
+    aux_decoder_kwargs:
+      dropout_rate: 0.4
+      kernel_size: 7
+      num_channels: 512
+      num_layers: 6
+    aux_loss_lambda: 0.2
+    backbone_arch: lynxnet
+    backbone_kwargs:
+      dropout_rate: 0.1
+      kernel_size: 31
+      num_channels: 1024
+      num_layers: 6
+      strong_cond: true
+    diffusion_type: reflow
+    max_beta: 0.06
+    sampling_algorithm: euler
+    sampling_steps: 20
+    t_start: 0.4
+    time_scale_factor: 1000
+    use_shallow_diffusion: true
+  sweet_breathy:
+    enabled: true
+    glottal_hidden_dim: 128
+    lf_param_dim: 5
+    use_lf_glottal: true
+  use_spk_id: true
+training:
+  dataloader:
+    frame_count_grid: 6
+    max_batch_frames: 50000
+    max_batch_size: 48
+    max_val_batch_frames: 20000
+    max_val_batch_size: 1
+    num_workers: 4
+    prefetch_factor: 2
+  finetuning:
+    freezing_enabled: false
+    freezing_exclude_params: []
+    freezing_include_params: []
+    pretraining_enabled: false
+    pretraining_exclude_params: []
+    pretraining_from: null
+    pretraining_include_params:
+    - model.*
+  loss:
+    spec_decoder:
+      aux_loss_type: L1
+      main_loss_log_norm: false
+      main_loss_type: L2
+    sweet_breathy:
+      enabled: false
+  lr_scheduler:
+    cls: torch.optim.lr_scheduler.StepLR
+    kwargs:
+      gamma: 0.5
+      step_size: 50000
+    unit: step
+  optimizer:
+    aux_lr_scale: 1.0
+    cls: torch.optim.AdamW
+    glottal_lr_scale: 2.0
+    kwargs:
+      betas:
+      - 0.9
+      - 0.98
+      lr: 0.0006
+      weight_decay: 0
+  trainer:
+    accelerator: auto
+    accumulate_grad_batches: 1
+    checkpoints:
+    - expression: total_loss
+      mode: min
+      save_top_k: 5
+      tag: best
+      type: expression
+      weights_only: false
+    - every_n_units: 2000
+      save_last_k: 2
+      since_m_units: 0
+      tag: temp
+      type: periodic
+      unit: step
+      weights_only: false
+    - every_n_units: 20000
+      save_last_k: -1
+      since_m_units: 100000
+      tag: perm
+      type: periodic
+      unit: step
+      weights_only: false
+    devices: auto
+    gradient_clip_val: 3.0
+    log_every_n_steps: 100
+    max_epochs: 1000
+    max_steps: 120000
+    min_epochs: 0
+    min_steps: 0
+    num_nodes: 1
+    num_sanity_val_steps: 1
+    precision: 16-mixed
+    strategy:
+      kwargs:
+        find_unused_parameters: false
+        process_group_backend: nccl
+      name: auto
+    unit: step
+    val_every_n_units: 2000
+  validation:
+    max_plots: 10
+    spec_vmax: 4.0
+    spec_vmin: -14.0
+    use_vocoder: true
+  weight_averaging:
+    ema_decay: 0.999
+    ema_enabled: true
+    ema_exclude_params: []
+    ema_include_params:
+    - model.*

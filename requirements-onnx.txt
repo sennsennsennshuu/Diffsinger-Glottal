@@ -1,0 +1,38 @@
+# It is recommended to install PyTorch manually.
+# PyTorch 1.13 is required for exporting ONNX models.
+# See instructions at https://pytorch.org/get-started/previous-versions/
+
+# SFC Breathness: ONNX export now supports glottal blend input.
+# When checkpoint contains glottal weights, the exported ONNX model
+# includes a 'glottal_blend' frame-level parameter (range [-1, 1]).
+# The sweet_breathy modules ARE imported during export (with try/except fallback).
+
+click
+dask
+einops>=0.7.0
+h5py
+librosa<0.10.0
+lightning~=2.1.0
+loguru
+matplotlib
+MonkeyType==23.3.0
+numpy<2.0.0
+omegaconf
+onnx~=1.16.0
+onnxsim~=0.4.36
+praat-parselmouth==0.4.3
+pydantic>=2.11,<3.0
+pyworld==0.3.4
+PyYAML
+resampy
+scipy>=1.10.0
+setuptools<70
+soundfile>=0.12.0
+tensorboard
+tensorboardX
+torch==1.13.1
+torchvision==0.14.1
+torchaudio==0.13.1
+torchmetrics
+tqdm
+onnxruntime

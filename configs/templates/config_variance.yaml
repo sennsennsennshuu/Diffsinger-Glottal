@@ -1,0 +1,267 @@
+# ============================================================================
+# DiffSinger v3 + SFC Breathness — 6 说话人多语言方差模型配置
+# ============================================================================
+
+bases: ["configs/base_v3.yaml"]
+
+# ---------- 数据配置 ----------
+data:
+  dictionaries:
+    zh: "dictionaries/opencpop-extension.txt"
+    ja: "dictionaries/dictionary-ja.txt"
+
+  extra_phonemes: []
+  merged_phoneme_groups:
+    - ["zh/i", "ja/i", ]
+    - ["SP", "ja/cl"]
+  glide_tags: []
+  sources:
+    - raw_data_dir: "data/opencpop/raw"
+      speaker: opencpop
+      spk_id: 0
+      language: zh
+      test_prefixes:
+        - "2001000001"
+        - "2001000002"
+        - "2001000003"
+    - raw_data_dir: "data/itako/raw"
+      speaker: itako
+      spk_id: 1
+      language: ja
+      test_prefixes:
+        - "itako02_seg036"
+        - "itako02_seg037"
+        - "itako02_seg038"
+    - raw_data_dir: "data/kiritan/raw"
+      speaker: kiritan
+      spk_id: 2
+      language: ja
+      test_prefixes:
+        - "01_000"
+        - "02_000"
+        - "03_000"
+    - raw_data_dir: "data/karasu/raw"
+      speaker: karasu
+      spk_id: 3
+      language: ja
+      test_prefixes:
+        - "bc_seg0"
+
+binarizer:
+  binary_data_dir: "data/test4s/binary/variance"
+  num_workers: 4
+  prefer_ds: false
+
+  extractors:
+    pitch_extraction:
+      method: rmvpe
+      model_path: "assets/rmvpe/model.pt"
+      f0_min: 65
+      f0_max: 1100
+    harmonic_noise_separation:
+      method: vr
+      model_path: "assets/vr/model.pt"
+
+  features:
+    audio_sample_rate: 44100
+    hop_size: 512
+    fft_size: 2048
+    win_size: 2048
+
+    energy:
+      enabled: true
+      smooth_width: 0.12
+
+    breathiness:
+      enabled: true
+      smooth_width: 0.12
+
+    voicing:
+      enabled: true
+      smooth_width: 0.12
+
+    tension:
+      enabled: true
+      smooth_width: 0.12
+
+  midi:
+    enabled: true
+    smooth_width: 0.06
+    with_glide: false
+
+model:
+  use_spk_id: true
+  num_spk: 4
+  condition_dim: 256
+
+  linguistic_encoder:
+    use_lang_id: true
+    num_lang: 2
+    arch: fs2
+    kwargs:
+      dropout: 0.1
+      use_pos_embed: true
+      num_layers: 4
+      num_heads: 2
+      ffn_kernel_size: 3
+      ffn_act: gelu
+      use_rope: true
+      rel_pos: true
+
+  melody_encoder:
+    use_glide_id: false
+    num_glide: 0
+    glide_embed_scale: 11.313708498984760
+    hidden_size: 128
+    arch: fs2
+    kwargs:
+      dropout: 0.1
+      use_pos_embed: true
+      num_layers: 4
+      num_heads: 2
+      ffn_kernel_size: 3
+      ffn_act: gelu
+      use_rope: true
+      rel_pos: true
+
+  prediction:
+    predict_dur: true
+    predict_pitch: true
+    predict_energy: false
+    predict_breathiness: true
+    predict_voicing: true
+    predict_tension: true
+
+  normalization:
+    pitch_repeat_bins: 64
+    pitd_norm_min: -8.0
+    pitd_norm_max: 8.0
+    pitd_clip_min: -12.0
+    pitd_clip_max: 12.0
+    variance_total_repeat_bins: 48
+    energy_db_min: -96.0
+    energy_db_max: -12.0
+    breathiness_db_min: -96.0
+    breathiness_db_max: -20.0
+    voicing_db_min: -96.0
+    voicing_db_max: -12.0
+    tension_logit_min: -10.0
+    tension_logit_max: 10.0
+
+  pitch_predictor:
+    diffusion_type: reflow
+    time_scale_factor: 1000
+    sampling_algorithm: euler
+    sampling_steps: 20
+    backbone_arch: wavenet
+    backbone_kwargs:
+      num_layers: 20
+      num_channels: 256
+      dilation_cycle_length: 5
+
+  variance_predictor:
+    diffusion_type: reflow
+    time_scale_factor: 1000
+    sampling_algorithm: euler
+    sampling_steps: 20
+    backbone_arch: wavenet
+    backbone_kwargs:
+      num_layers: 10
+      num_channels: 192
+      dilation_cycle_length: 4
+
+training:
+  loss:
+    pitch_predictor:
+      main_loss_type: L2
+      main_loss_log_norm: true
+    variance_predictor:
+      main_loss_type: L2
+      main_loss_log_norm: true
+
+  dataloader:
+    max_batch_frames: 50000
+    max_batch_size: 64
+    max_val_batch_frames: 20000
+    max_val_batch_size: 1
+    frame_count_grid: 6
+    num_workers: 4
+    prefetch_factor: 2
+
+  optimizer:
+    cls: torch.optim.AdamW
+    kwargs:
+      lr: 0.0003
+      betas: [0.9, 0.98]
+      weight_decay: 0
+
+  lr_scheduler:
+    cls: torch.optim.lr_scheduler.StepLR
+    kwargs:
+      step_size: 50000
+      gamma: 0.5
+    unit: "step"
+
+  trainer:
+    unit: "step"
+    min_steps: 0
+    max_steps: 160000
+    min_epochs: 0
+    max_epochs: 1000
+    val_every_n_units: 2000
+    log_every_n_steps: 100
+    num_sanity_val_steps: 1
+
+    checkpoints:
+      - tag: "best"
+        type: "expression"
+        expression: "total_loss"
+        save_top_k: 5
+        mode: "min"
+        weights_only: false
+      - tag: "temp"
+        type: "periodic"
+        unit: "step"
+        every_n_units: 2000
+        since_m_units: 0
+        save_last_k: 2
+        weights_only: false
+      - tag: "perm"
+        type: "periodic"
+        unit: "step"
+        every_n_units: 20000
+        since_m_units: 100000
+        save_last_k: -1
+        weights_only: false
+
+    precision: "16-mixed"
+    accelerator: "auto"
+    devices: "auto"
+    num_nodes: 1
+    strategy:
+      name: "auto"
+      kwargs:
+        process_group_backend: nccl
+        find_unused_parameters: false
+    accumulate_grad_batches: 1
+    gradient_clip_val: 1.0
+
+  validation:
+    max_plots: 10
+
+  finetuning:
+    pretraining_enabled: false
+    pretraining_from: null
+    pretraining_include_params: ["model.*"]
+    pretraining_exclude_params: []
+    freezing_enabled: false
+    freezing_include_params: []
+    freezing_exclude_params: []
+
+  weight_averaging:
+    ema_enabled: false
+    ema_decay: 0.999
+    ema_include_params: ["model.*"]
+    ema_exclude_params: []
+
+inference: {}

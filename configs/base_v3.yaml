@@ -1,0 +1,6 @@
+# DiffSinger v3 基础配置 —— 所有 acoustic / variance 配置文件都继承自此文件
+# 不要直接删除，会被 data/config_acoustic.yaml 作为 bases 引用
+
+inference:
+  vocoder:
+    vocoder_type: "pc-nsf-hifigan"
